@@ -4,29 +4,59 @@ const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.SECRET_KEY || "thisisthemegarobloxgamepass_392938498";
 
 // ─────────────────────────────────────────────
-// Obtiene los Game Passes que un usuario tiene
-// en su INVENTARIO (passes que él mismo compró
-// o que creó en sus juegos)
+// Obtiene los juegos del usuario
 // ─────────────────────────────────────────────
-async function getPassesFromInventory(userId) {
+async function getUserGames(userId) {
+    let games = [];
+    let cursor = "";
+
+    do {
+        const url = `https://games.roblox.com/v2/users/${userId}/games?accessFilter=Public&limit=50${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) {
+            console.warn("[Warn] games endpoint:", res.status);
+            break;
+        }
+
+        const data = await res.json();
+        if (!data.data) break;
+
+        for (const game of data.data) {
+            games.push({ id: game.rootPlaceId, universeId: game.id, name: game.name });
+        }
+
+        cursor = data.nextPageCursor || "";
+    } while (cursor);
+
+    return games;
+}
+
+// ─────────────────────────────────────────────
+// Obtiene los Game Passes de un universo
+// ─────────────────────────────────────────────
+async function getPassesForUniverse(universeId) {
     let passes = [];
     let cursor = "";
 
     do {
-        const url = `https://inventory.roblox.com/v1/users/${userId}/assets/collectibles?assetType=GamePass&limit=100${cursor ? "&cursor=" + cursor : ""}`;
-        const res  = await fetch(url);
+        const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) break;
+
         const data = await res.json();
-
-        console.log("[Debug inventory]", JSON.stringify(data));
-
         if (!data.data) break;
 
-        for (const item of data.data) {
-            passes.push({
-                id:    item.assetId,
-                name:  item.name,
-                price: item.recentAveragePrice || 0
-            });
+        for (const pass of data.data) {
+            if (pass.price && pass.price > 0) {
+                passes.push({
+                    id:    pass.id,
+                    name:  pass.name,
+                    price: pass.price,
+                    type:  "gamepass"
+                });
+            }
         }
 
         cursor = data.nextPageCursor || "";
@@ -36,28 +66,29 @@ async function getPassesFromInventory(userId) {
 }
 
 // ─────────────────────────────────────────────
-// Obtiene los Game Passes de TODOS los juegos
-// del usuario usando la API de catalog
+// Obtiene Shirts del usuario desde el catálogo
 // ─────────────────────────────────────────────
-async function getPassesFromCatalog(userId) {
-    let passes = [];
+async function getShirts(userId) {
+    let items = [];
     let cursor = "";
 
     do {
-        const url = `https://catalog.roblox.com/v1/search/items/details?Category=GamePass&CreatorTargetId=${userId}&CreatorType=User&limit=30${cursor ? "&cursor=" + cursor : ""}`;
-        const res  = await fetch(url);
+        // Subcategory 12 = Shirts
+        const url = `https://catalog.roblox.com/v1/search/items/details?Category=3&Subcategory=12&CreatorTargetId=${userId}&CreatorType=User&limit=30${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) break;
+
         const data = await res.json();
-
-        console.log("[Debug catalog]", JSON.stringify(data));
-
         if (!data.data) break;
 
         for (const item of data.data) {
             if (item.price && item.price > 0) {
-                passes.push({
+                items.push({
                     id:    item.id,
                     name:  item.name,
-                    price: item.price
+                    price: item.price,
+                    type:  "shirt"
                 });
             }
         }
@@ -65,7 +96,75 @@ async function getPassesFromCatalog(userId) {
         cursor = data.nextPageCursor || "";
     } while (cursor);
 
-    return passes;
+    return items;
+}
+
+// ─────────────────────────────────────────────
+// Obtiene Pants del usuario
+// ─────────────────────────────────────────────
+async function getPants(userId) {
+    let items = [];
+    let cursor = "";
+
+    do {
+        // Subcategory 13 = Pants
+        const url = `https://catalog.roblox.com/v1/search/items/details?Category=3&Subcategory=13&CreatorTargetId=${userId}&CreatorType=User&limit=30${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) break;
+
+        const data = await res.json();
+        if (!data.data) break;
+
+        for (const item of data.data) {
+            if (item.price && item.price > 0) {
+                items.push({
+                    id:    item.id,
+                    name:  item.name,
+                    price: item.price,
+                    type:  "pants"
+                });
+            }
+        }
+
+        cursor = data.nextPageCursor || "";
+    } while (cursor);
+
+    return items;
+}
+
+// ─────────────────────────────────────────────
+// Obtiene T-Shirts del usuario
+// ─────────────────────────────────────────────
+async function getTshirts(userId) {
+    let items = [];
+    let cursor = "";
+
+    do {
+        // Subcategory 11 = T-Shirts
+        const url = `https://catalog.roblox.com/v1/search/items/details?Category=3&Subcategory=11&CreatorTargetId=${userId}&CreatorType=User&limit=30${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        if (!res.ok) break;
+
+        const data = await res.json();
+        if (!data.data) break;
+
+        for (const item of data.data) {
+            if (item.price && item.price > 0) {
+                items.push({
+                    id:    item.id,
+                    name:  item.name,
+                    price: item.price,
+                    type:  "tshirt"
+                });
+            }
+        }
+
+        cursor = data.nextPageCursor || "";
+    } while (cursor);
+
+    return items;
 }
 
 // ─────────────────────────────────────────────
@@ -84,30 +183,57 @@ app.get("/passes", async (req, res) => {
     }
 
     try {
-        // Intentamos primero con catalog (más confiable para passes a la venta)
-        let passes = await getPassesFromCatalog(parsedId);
+        // 1. Buscar juegos del usuario
+        const games = await getUserGames(parsedId);
+        console.log(`[Debug] Juegos encontrados para ${parsedId}:`, games.length);
 
-        // Si catalog no devuelve nada, probamos con inventory
-        if (passes.length === 0) {
-            console.log("[Debug] Catalog vacío, probando inventory...");
-            passes = await getPassesFromInventory(parsedId);
-        }
+        // 2. Buscar passes de cada juego en paralelo
+        const passArrays = await Promise.all(
+            games.map(g => getPassesForUniverse(g.universeId))
+        );
+        let passes = passArrays.flat();
 
-        // Filtramos duplicados por id
-        const seen  = new Set();
-        passes = passes.filter(p => {
-            if (seen.has(p.id)) return false;
-            seen.add(p.id);
+        // 3. Buscar cosméticos en paralelo
+        const [shirts, pants, tshirts] = await Promise.all([
+            getShirts(parsedId),
+            getPants(parsedId),
+            getTshirts(parsedId)
+        ]);
+
+        // 4. Unir todo
+        let allItems = [...passes, ...shirts, ...pants, ...tshirts];
+
+        // 5. Deduplicar por id
+        const seen = new Set();
+        allItems = allItems.filter(p => {
+            const key = `${p.type}-${p.id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
             return true;
         });
 
-        console.log(`[Debug] Total passes encontrados para ${parsedId}:`, passes.length);
-        return res.json({ passes });
+        console.log(`[Debug] Total items para ${parsedId}:`, allItems.length);
+        return res.json({ passes: allItems });
 
     } catch (err) {
         console.error("[Error]", err.message);
         return res.status(500).json({ error: "Error interno", detail: err.message });
     }
+});
+
+// ─────────────────────────────────────────────
+// Endpoint de diagnóstico (podés borrarlo luego)
+// ─────────────────────────────────────────────
+app.get("/debug", async (req, res) => {
+    const { userId, key } = req.query;
+
+    if (key !== SECRET_KEY) return res.status(401).json({ error: "Unauthorized" });
+
+    const parsedId = parseInt(userId);
+    if (!userId || isNaN(parsedId)) return res.status(400).json({ error: "userId inválido" });
+
+    const games = await getUserGames(parsedId);
+    return res.json({ games });
 });
 
 app.listen(PORT, () => {
