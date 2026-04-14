@@ -47,51 +47,33 @@ async function getPassesForUniverse(universeId) {
         const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetch(url);
 
+        console.log(`[Passes] universo ${universeId} status:`, res.status);
+
         if (!res.ok) {
-            console.warn(`[Warn] Passes status ${res.status} para universo ${universeId}`);
+            const text = await res.text();
+            console.warn(`[Passes] Error body:`, text.slice(0, 200));
             break;
         }
 
         const data = await res.json();
-        if (!data.data || data.data.length === 0) break;
+        console.log(`[Passes] Raw data:`, JSON.stringify(data).slice(0, 300));
 
-        // Recolectamos los IDs de los passes
+        if (!data.data || data.data.length === 0) {
+            console.log(`[Passes] Sin passes para universo ${universeId}`);
+            break;
+        }
+
         const ids = data.data.map(p => p.id);
+        console.log(`[Passes] IDs encontrados:`, ids);
 
-        // Consultamos el precio de cada pass en lotes de 100
         const detailsUrl = `https://itemdetails.roblox.com/v1/game-passes?gamePassIds=${ids.join(",")}`;
         const detailsRes = await fetch(detailsUrl);
+        console.log(`[Passes] itemdetails status:`, detailsRes.status);
 
         if (detailsRes.ok) {
             const details = await detailsRes.json();
-            const priceMap = {};
-            for (const d of (details.data || [])) {
-                priceMap[d.id] = d.price;
-            }
-
-            for (const pass of data.data) {
-                const price = priceMap[pass.id];
-                if (price && price > 0) {
-                    passes.push({
-                        id:    pass.id,
-                        name:  pass.name,
-                        price: price,
-                        type:  "gamepass"
-                    });
-                }
-            }
-        } else {
-            // Fallback: usar el price que venga directamente si existe
-            for (const pass of data.data) {
-                if (pass.price && pass.price > 0) {
-                    passes.push({
-                        id:    pass.id,
-                        name:  pass.name,
-                        price: pass.price,
-                        type:  "gamepass"
-                    });
-                }
-            }
+            console.log(`[Passes] itemdetails raw:`, JSON.stringify(details).slice(0, 300));
+            // ... resto igual
         }
 
         cursor = data.nextPageCursor || "";
