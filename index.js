@@ -64,12 +64,13 @@ app.get("/passes", async (req, res) => {
         return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (!userId || isNaN(userId)) {
-        return res.status(400).json({ error: "userId inválido" });
-    }
+const parsedId = parseInt(userId);
+if (!userId || isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: "userId inválido" });
+}
 
     try {
-        const universeId = await getUniverseId(Number(userId));
+        const universeId = await getUniverseId(parsedId);
 
         if (!universeId) {
             return res.json({ passes: [], note: "El jugador no tiene juegos públicos" });
