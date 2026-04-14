@@ -47,19 +47,50 @@ async function getPassesForUniverse(universeId) {
         const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetch(url);
 
-        if (!res.ok) break;
+        if (!res.ok) {
+            console.warn(`[Warn] Passes status ${res.status} para universo ${universeId}`);
+            break;
+        }
 
         const data = await res.json();
-        if (!data.data) break;
+        if (!data.data || data.data.length === 0) break;
 
-        for (const pass of data.data) {
-            if (pass.price && pass.price > 0) {
-                passes.push({
-                    id:    pass.id,
-                    name:  pass.name,
-                    price: pass.price,
-                    type:  "gamepass"
-                });
+        // Recolectamos los IDs de los passes
+        const ids = data.data.map(p => p.id);
+
+        // Consultamos el precio de cada pass en lotes de 100
+        const detailsUrl = `https://itemdetails.roblox.com/v1/game-passes?gamePassIds=${ids.join(",")}`;
+        const detailsRes = await fetch(detailsUrl);
+
+        if (detailsRes.ok) {
+            const details = await detailsRes.json();
+            const priceMap = {};
+            for (const d of (details.data || [])) {
+                priceMap[d.id] = d.price;
+            }
+
+            for (const pass of data.data) {
+                const price = priceMap[pass.id];
+                if (price && price > 0) {
+                    passes.push({
+                        id:    pass.id,
+                        name:  pass.name,
+                        price: price,
+                        type:  "gamepass"
+                    });
+                }
+            }
+        } else {
+            // Fallback: usar el price que venga directamente si existe
+            for (const pass of data.data) {
+                if (pass.price && pass.price > 0) {
+                    passes.push({
+                        id:    pass.id,
+                        name:  pass.name,
+                        price: pass.price,
+                        type:  "gamepass"
+                    });
+                }
             }
         }
 
@@ -68,7 +99,6 @@ async function getPassesForUniverse(universeId) {
 
     return passes;
 }
-
 // ─────────────────────────────────────────────
 // Obtiene Shirts del usuario desde el catálogo
 // ─────────────────────────────────────────────
