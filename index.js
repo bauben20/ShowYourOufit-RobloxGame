@@ -44,7 +44,7 @@ async function getPassesForUniverse(universeId) {
     let cursor = "";
 
     do {
-        const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100${cursor ? "&cursor=" + cursor : ""}`;
+        const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?sortOrder=Asc&limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetch(url);
 
         console.log(`[Passes] universo ${universeId} status:`, res.status);
