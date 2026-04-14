@@ -32,6 +32,9 @@ async function getUserGames(userId) {
     return games;
 }
 
+const cors = require("cors");
+app.use(cors());
+
 // ─────────────────────────────────────────────
 // Obtiene los Game Passes de un universo
 // ─────────────────────────────────────────────
