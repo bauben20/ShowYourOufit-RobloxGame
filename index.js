@@ -48,7 +48,9 @@ async function getPassesForUniverse(universeId) {
         const res = await fetch(url);
 
         console.log(`[Passes] universo ${universeId} status:`, res.status);
-
+        console.log(`[Debug] Juegos encontrados para ${parsedId}:`, games.length);
+        console.log(`[Debug] Juegos:`, JSON.stringify(games)); // ← línea nueva
+        
         if (!res.ok) {
             const text = await res.text();
             console.warn(`[Passes] Error body:`, text.slice(0, 200));
