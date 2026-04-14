@@ -1,3 +1,4 @@
+const fetch = require("node-fetch");
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -238,6 +239,24 @@ app.get("/debug", async (req, res) => {
     const games = await getUserGames(parsedId);
     return res.json({ games });
 });
+
+async function getPassesForUniverse(universeId) {
+    let passes = [];
+    let cursor = "";
+
+    do {
+        const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?limit=100${cursor ? "&cursor=" + cursor : ""}`;
+        const res = await fetch(url);
+
+        console.log(`[Debug] Passes status para universo ${universeId}:`, res.status);
+
+        if (!res.ok) break;
+
+        const data = await res.json();
+        console.log(`[Debug] Passes raw response:`, JSON.stringify(data).slice(0, 300));
+
+        if (!data.data) break;
+        // ... resto igual
 
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
