@@ -5,7 +5,7 @@ const PORT      = process.env.PORT || 3000;
 
 // Tu clave secreta — la misma que ponés en Roblox
 // Cambiala por cualquier string largo y aleatorio
-const SECRET_KEY = process.env.SECRET_KEY || "cambia_esta_clave_secreta_123";
+const SECRET_KEY = process.env.SECRET_KEY || "thisisthemegarobloxgamepass_392938498";
 
 // ─────────────────────────────────────────────
 // Convierte UserId → UniverseId del juego
