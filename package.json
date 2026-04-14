@@ -2,6 +2,7 @@
   "name": "ShowYourOufit-RobloxGame",
   "version": "1.0.0",
   "main": "index.js",
+  "cors": "^2.8.5",
   "scripts": {
     "start": "node index.js"
   },
