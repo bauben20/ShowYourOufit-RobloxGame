@@ -9,33 +9,41 @@ const SECRET_KEY = process.env.SECRET_KEY || "thisisthemegarobloxgamepass_392938
 app.use(cors());
 
 // ─────────────────────────────────────────────
-// Helper: fetch con reintentos ante rate-limit
+// Helper: espera X milisegundos
 // ─────────────────────────────────────────────
-async function fetchWithRetry(url, retries = 3, delayMs = 1000) {
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ─────────────────────────────────────────────
+// Helper: fetch con reintentos y backoff
+// ─────────────────────────────────────────────
+async function fetchWithRetry(url, retries = 4, delayMs = 1500) {
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const res = await fetch(url, {
-                headers: { "Accept": "application/json" }
+                headers: {
+                    "Accept": "application/json",
+                    "User-Agent": "Mozilla/5.0"
+                }
             });
 
             if (res.status === 429) {
-                console.warn(`[RateLimit] ${url} — esperando ${delayMs}ms`);
-                await new Promise(r => setTimeout(r, delayMs));
-                delayMs *= 2;
+                const wait = delayMs * Math.pow(2, attempt);
+                console.warn(`[RateLimit] Intento ${attempt + 1} — esperando ${wait}ms | ${url}`);
+                await sleep(wait);
                 continue;
             }
 
             return res;
         } catch (err) {
             if (attempt === retries - 1) throw err;
-            await new Promise(r => setTimeout(r, delayMs));
+            await sleep(delayMs);
         }
     }
+    return null;
 }
 
 // ─────────────────────────────────────────────
 // Obtiene los juegos del usuario
-// Usa la API v2 paginada
 // ─────────────────────────────────────────────
 async function getUserGames(userId) {
     let games = [];
@@ -62,6 +70,7 @@ async function getUserGames(userId) {
         }
 
         cursor = data.nextPageCursor || "";
+        if (cursor) await sleep(300);
     } while (cursor);
 
     return games;
@@ -69,50 +78,9 @@ async function getUserGames(userId) {
 
 // ─────────────────────────────────────────────
 // Obtiene Game Passes de un universo
-// Usa catalog.roblox.com que es más estable
+// Endpoint correcto y vigente de Roblox (2025+)
 // ─────────────────────────────────────────────
 async function getPassesForUniverse(universeId) {
-    let passes = [];
-    let cursor = "";
-
-    do {
-        // Este endpoint es el más confiable para game passes públicos
-        const url = `https://catalog.roblox.com/v1/search/items/details?Category=13&Subcategory=40&universeId=${universeId}&limit=30${cursor ? "&cursor=" + cursor : ""}`;
-        const res = await fetchWithRetry(url);
-
-        if (!res || !res.ok) {
-            // Fallback: intentar con el endpoint de games directamente
-            console.warn(`[getPassesForUniverse] catalog falló para universo ${universeId}, probando fallback...`);
-            const fallbackPasses = await getPassesFallback(universeId);
-            passes.push(...fallbackPasses);
-            break;
-        }
-
-        const data = await res.json();
-        if (!data.data || data.data.length === 0) break;
-
-        for (const item of data.data) {
-            if (item.price && item.price > 0) {
-                passes.push({
-                    id:    item.id,
-                    name:  item.name,
-                    price: item.price,
-                    type:  "gamepass"
-                });
-            }
-        }
-
-        cursor = data.nextPageCursor || "";
-    } while (cursor);
-
-    return passes;
-}
-
-// ─────────────────────────────────────────────
-// Fallback: endpoint oficial de game-passes
-// games.roblox.com/v1/games/{universeId}/game-passes
-// ─────────────────────────────────────────────
-async function getPassesFallback(universeId) {
     let passes = [];
     let cursor = "";
 
@@ -120,8 +88,18 @@ async function getPassesFallback(universeId) {
         const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?sortOrder=Asc&limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetchWithRetry(url);
 
-        if (!res || !res.ok) {
-            console.warn(`[getPassesFallback] status: ${res?.status} para universo ${universeId}`);
+        if (!res) {
+            console.warn(`[getPassesForUniverse] Sin respuesta para universo ${universeId}`);
+            break;
+        }
+
+        if (res.status === 404) {
+            // El juego no tiene passes o no existe — no es error crítico
+            break;
+        }
+
+        if (!res.ok) {
+            console.warn(`[getPassesForUniverse] status: ${res.status} para universo ${universeId}`);
             break;
         }
 
@@ -129,7 +107,7 @@ async function getPassesFallback(universeId) {
         if (!data.data || data.data.length === 0) break;
 
         for (const p of data.data) {
-            if (p.price && p.price > 0) {
+            if (p.price !== null && p.price !== undefined && p.price > 0) {
                 passes.push({
                     id:    p.id,
                     name:  p.name,
@@ -140,13 +118,15 @@ async function getPassesFallback(universeId) {
         }
 
         cursor = data.nextPageCursor || "";
+        if (cursor) await sleep(300);
     } while (cursor);
 
     return passes;
 }
 
 // ─────────────────────────────────────────────
-// Helper genérico para cosméticos del catálogo
+// Obtiene ítems del catálogo del usuario
+// SECUENCIAL para no disparar rate-limit
 // ─────────────────────────────────────────────
 async function getCatalogItems(userId, subcategory, type) {
     let items = [];
@@ -156,8 +136,13 @@ async function getCatalogItems(userId, subcategory, type) {
         const url = `https://catalog.roblox.com/v1/search/items/details?Category=3&Subcategory=${subcategory}&CreatorTargetId=${userId}&CreatorType=User&limit=30${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetchWithRetry(url);
 
-        if (!res || !res.ok) {
-            console.warn(`[getCatalogItems] tipo ${type} status: ${res?.status}`);
+        if (!res) {
+            console.warn(`[getCatalogItems] Sin respuesta para tipo ${type}`);
+            break;
+        }
+
+        if (!res.ok) {
+            console.warn(`[getCatalogItems] tipo ${type} status: ${res.status}`);
             break;
         }
 
@@ -176,15 +161,11 @@ async function getCatalogItems(userId, subcategory, type) {
         }
 
         cursor = data.nextPageCursor || "";
+        if (cursor) await sleep(500);
     } while (cursor);
 
     return items;
 }
-
-// Subcategories: 11 = T-Shirts, 12 = Shirts, 13 = Pants
-const getShirts  = (userId) => getCatalogItems(userId, 12, "shirt");
-const getPants   = (userId) => getCatalogItems(userId, 13, "pants");
-const getTshirts = (userId) => getCatalogItems(userId, 11, "tshirt");
 
 // ─────────────────────────────────────────────
 // Endpoint principal: /passes
@@ -206,21 +187,21 @@ app.get("/passes", async (req, res) => {
         const games = await getUserGames(parsedId);
         console.log(`[Debug] Juegos encontrados para ${parsedId}:`, games.length);
 
-        // 2. Game Passes de cada juego en paralelo (con límite de concurrencia)
-        const CONCURRENCY = 5;
+        // 2. Game Passes — SECUENCIAL con pausa entre universos para evitar 429
         let passes = [];
-        for (let i = 0; i < games.length; i += CONCURRENCY) {
-            const batch = games.slice(i, i + CONCURRENCY);
-            const results = await Promise.all(batch.map(g => getPassesForUniverse(g.universeId)));
-            passes.push(...results.flat());
+        for (const game of games) {
+            const gamePasses = await getPassesForUniverse(game.universeId);
+            passes.push(...gamePasses);
+            await sleep(400);
         }
+        console.log(`[Debug] Passes encontrados para ${parsedId}:`, passes.length);
 
-        // 3. Cosméticos en paralelo
-        const [shirts, pants, tshirts] = await Promise.all([
-            getShirts(parsedId),
-            getPants(parsedId),
-            getTshirts(parsedId)
-        ]);
+        // 3. Cosméticos — SECUENCIAL, uno por vez con pausa entre cada uno
+        const shirts  = await getCatalogItems(parsedId, 12, "shirt");
+        await sleep(700);
+        const pants   = await getCatalogItems(parsedId, 13, "pants");
+        await sleep(700);
+        const tshirts = await getCatalogItems(parsedId, 11, "tshirt");
 
         // 4. Unir todo
         let allItems = [...passes, ...shirts, ...pants, ...tshirts];
@@ -257,13 +238,20 @@ app.get("/debug", async (req, res) => {
     try {
         const games = await getUserGames(parsedId);
 
-        // También mostramos passes del primer juego para diagnóstico
         let samplePasses = [];
         if (games.length > 0) {
             samplePasses = await getPassesForUniverse(games[0].universeId);
         }
 
-        return res.json({ games, samplePasses });
+        const sampleShirts = await getCatalogItems(parsedId, 12, "shirt");
+
+        return res.json({
+            userId: parsedId,
+            gamesFound: games.length,
+            games,
+            samplePasses,
+            sampleShirts
+        });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
