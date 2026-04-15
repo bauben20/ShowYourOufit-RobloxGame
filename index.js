@@ -44,7 +44,7 @@ async function getPassesForUniverse(universeId) {
     let cursor = "";
 
     do {
-        const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?sortOrder=Asc&limit=100${cursor ? "&cursor=" + cursor : ""}`;
+        const url = `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes?passView=Full&limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetch(url);
 
         if (!res.ok) {
@@ -53,21 +53,22 @@ async function getPassesForUniverse(universeId) {
         }
 
         const data = await res.json();
-        if (!data.data || data.data.length === 0) break;
+        if (!data.gamePassesList || data.gamePassesList.length === 0) break;
 
-        for (const p of data.data) {
-            // The v1 endpoint already includes price in the response
-            if (p.price != null && p.price > 0) {
+        for (const p of data.gamePassesList) {
+            // Con passView=Full el precio viene en basicGamePassResponse
+            const price = p.basicGamePassResponse?.robuxPrice ?? p.price ?? 0;
+            if (price > 0) {
                 passes.push({
-                    id:    p.id,
-                    name:  p.name,
-                    price: p.price,
+                    id:    p.basicGamePassResponse?.gamePassId ?? p.id,
+                    name:  p.basicGamePassResponse?.name ?? p.name,
+                    price: price,
                     type:  "gamepass"
                 });
             }
         }
 
-        cursor = data.nextPageCursor || "";
+        cursor = data.nextPageToken || "";
     } while (cursor);
 
     return passes;
