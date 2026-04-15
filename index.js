@@ -47,33 +47,24 @@ async function getPassesForUniverse(universeId) {
         const url = `https://games.roblox.com/v1/games/${universeId}/game-passes?sortOrder=Asc&limit=100${cursor ? "&cursor=" + cursor : ""}`;
         const res = await fetch(url);
 
-        console.log(`[Passes] universo ${universeId} status:`, res.status);
-        
         if (!res.ok) {
-            const text = await res.text();
-            console.warn(`[Passes] Error body:`, text.slice(0, 200));
+            console.warn(`[Passes] universo ${universeId} status: ${res.status}`);
             break;
         }
 
         const data = await res.json();
-        console.log(`[Passes] Raw data:`, JSON.stringify(data).slice(0, 300));
+        if (!data.data || data.data.length === 0) break;
 
-        if (!data.data || data.data.length === 0) {
-            console.log(`[Passes] Sin passes para universo ${universeId}`);
-            break;
-        }
-
-        const ids = data.data.map(p => p.id);
-        console.log(`[Passes] IDs encontrados:`, ids);
-
-        const detailsUrl = `https://itemdetails.roblox.com/v1/game-passes?gamePassIds=${ids.join(",")}`;
-        const detailsRes = await fetch(detailsUrl);
-        console.log(`[Passes] itemdetails status:`, detailsRes.status);
-
-        if (detailsRes.ok) {
-            const details = await detailsRes.json();
-            console.log(`[Passes] itemdetails raw:`, JSON.stringify(details).slice(0, 300));
-            // ... resto igual
+        for (const p of data.data) {
+            // The v1 endpoint already includes price in the response
+            if (p.price != null && p.price > 0) {
+                passes.push({
+                    id:    p.id,
+                    name:  p.name,
+                    price: p.price,
+                    type:  "gamepass"
+                });
+            }
         }
 
         cursor = data.nextPageCursor || "";
